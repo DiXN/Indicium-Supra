@@ -5,6 +5,7 @@
 
 #include <Utils/Windows.h>
 #include <Game/Game.h>
+#include <boost/log/support/date_time.hpp>
 
 HANDLE g_hDllHandle = 0;
 
@@ -24,7 +25,12 @@ BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID)
 				(
 					keywords::file_name = "Indicium-Supra.log",
 					keywords::auto_flush = true,
-					keywords::format = "[%TimeStamp%]: %Message%"
+					keywords::format = (
+						expr::stream
+						<< expr::format_date_time<boost::posix_time::ptime>("TimeStamp", "%d.%m.%Y - %H:%M:%S")
+						<< ": [" << logging::trivial::severity
+						<< "] " << expr::smessage
+					)
 				);
 
 			logging::core::get()->set_filter
