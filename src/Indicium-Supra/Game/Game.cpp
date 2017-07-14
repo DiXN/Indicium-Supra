@@ -161,15 +161,25 @@ void initGame()
 
 	BOOST_LOG_TRIVIAL(info) << "Hook engine initialized";
 
-	g_dispatchMessageAHook.apply(reinterpret_cast<DWORD>(GetProcAddress(GetModuleHandle("user32.dll"), "DispatchMessageA")), [](const MSG *lpmsg) -> LRESULT
+	BOOST_LOG_TRIVIAL(info) << "Hooking USER32!DispatchMessageA (ANSI)";
+
+	g_dispatchMessageAHook.apply(reinterpret_cast<DWORD>(GetProcAddress(GetModuleHandle("user32.dll"), "DispatchMessageA")), [](const MSG* lpmsg) -> LRESULT
 	{
+		static boost::once_flag flag = BOOST_ONCE_INIT;
+		boost::call_once(flag, boost::bind(&logOnce, "++ USER32!DispatchMessageA (ANSI) called"));
+
 		InternalDispatchMessage(lpmsg);
 
 		return g_dispatchMessageAHook.callOrig(lpmsg);
 	});
 
-	g_dispatchMessageWHook.apply(reinterpret_cast<DWORD>(GetProcAddress(GetModuleHandle("user32.dll"), "DispatchMessageW")), [](const MSG *lpmsg) -> LRESULT
+	BOOST_LOG_TRIVIAL(info) << "Hooking USER32!DispatchMessageW (Unicode)";
+
+	g_dispatchMessageWHook.apply(reinterpret_cast<DWORD>(GetProcAddress(GetModuleHandle("user32.dll"), "DispatchMessageW")), [](const MSG* lpmsg) -> LRESULT
 	{
+		static boost::once_flag flag = BOOST_ONCE_INIT;
+		boost::call_once(flag, boost::bind(&logOnce, "++ USER32!DispatchMessageW (Unicode) called"));
+		
 		InternalDispatchMessage(lpmsg);
 
 		return g_dispatchMessageWHook.callOrig(lpmsg);
@@ -181,6 +191,9 @@ void initGame()
 
 		g_present9Hook.apply(vtable[Direct3D9Hooking::Present], [](LPDIRECT3DDEVICE9 dev, CONST RECT* a1, CONST RECT* a2, HWND a3, CONST RGNDATA* a4) -> HRESULT
 		{
+			static boost::once_flag flag = BOOST_ONCE_INIT;
+			boost::call_once(flag, boost::bind(&logOnce, "++ IDirect3DDevice9::Present called"));
+
 			g_bIsUsingPresent = true;
 
 			g_pRenderer.draw(dev);
@@ -192,7 +205,10 @@ void initGame()
 
 		g_reset9Hook.apply(vtable[Direct3D9Hooking::Reset], [](LPDIRECT3DDEVICE9 dev, D3DPRESENT_PARAMETERS* pp) -> HRESULT
 		{
-			g_pRenderer.reset(dev);
+			static boost::once_flag flag = BOOST_ONCE_INIT;
+			boost::call_once(flag, boost::bind(&logOnce, "++ IDirect3DDevice9::Reset called"));
+
+			// g_pRenderer.reset(dev);
 
 			return g_reset9Hook.callOrig(dev, pp);
 		});
@@ -201,6 +217,9 @@ void initGame()
 
 		g_endScene9Hook.apply(vtable[Direct3D9Hooking::EndScene], [](LPDIRECT3DDEVICE9 dev) -> HRESULT
 		{
+			static boost::once_flag flag = BOOST_ONCE_INIT;
+			boost::call_once(flag, boost::bind(&logOnce, "++ IDirect3DDevice9::EndScene called"));
+
 			if (!g_bIsUsingPresent)
 			{
 				g_pRenderer.draw(dev);
@@ -216,6 +235,9 @@ void initGame()
 
 		g_present9ExHook.apply(vtableEx[Direct3D9Hooking::PresentEx], [](LPDIRECT3DDEVICE9EX dev, CONST RECT* a1, CONST RECT* a2, HWND a3, CONST RGNDATA* a4, DWORD a5) -> HRESULT
 		{
+			static boost::once_flag flag = BOOST_ONCE_INIT;
+			boost::call_once(flag, boost::bind(&logOnce, "++ IDirect3DDevice9Ex::PresentEx called"));
+
 			g_bIsUsingPresent = true;
 
 			g_pRenderer.draw(dev);
@@ -227,7 +249,10 @@ void initGame()
 
 		g_reset9ExHook.apply(vtableEx[Direct3D9Hooking::ResetEx], [](LPDIRECT3DDEVICE9EX dev, D3DPRESENT_PARAMETERS* pp, D3DDISPLAYMODEEX* ppp) -> HRESULT
 		{
-			g_pRenderer.reset(dev);
+			static boost::once_flag flag = BOOST_ONCE_INIT;
+			boost::call_once(flag, boost::bind(&logOnce, "++ IDirect3DDevice9Ex::ResetEx called"));
+
+			// g_pRenderer.reset(dev);
 
 			return g_reset9ExHook.callOrig(dev, pp, ppp);
 		});
@@ -237,18 +262,20 @@ void initGame()
 	{
 		BOOST_LOG_TRIVIAL(info) << "Hooking IDXGISwapChain::Present";
 
-		g_swapChainPresent10Hook.apply(vtable10SwapChain[Direct3D10Hooking::Present], [](IDXGISwapChain *chain, UINT SyncInterval, UINT Flags) -> HRESULT
+		g_swapChainPresent10Hook.apply(vtable10SwapChain[Direct3D10Hooking::Present], [](IDXGISwapChain* chain, UINT SyncInterval, UINT Flags) -> HRESULT
 		{
-			BOOST_LOG_TRIVIAL(info) << "IDXGISwapChain::Present called";
+			static boost::once_flag flag = BOOST_ONCE_INIT;
+			boost::call_once(flag, boost::bind(&logOnce, "++ IDXGISwapChain::Present called"));
 
 			return g_swapChainPresent10Hook.callOrig(chain, SyncInterval, Flags);
 		});
 
 		BOOST_LOG_TRIVIAL(info) << "Hooking IDXGISwapChain::ResizeTarget";
 
-		g_swapChainResizeTarget10Hook.apply(vtable10SwapChain[Direct3D10Hooking::ResizeTarget], [](IDXGISwapChain *chain, const DXGI_MODE_DESC *pNewTargetParameters) -> HRESULT
+		g_swapChainResizeTarget10Hook.apply(vtable10SwapChain[Direct3D10Hooking::ResizeTarget], [](IDXGISwapChain* chain, const DXGI_MODE_DESC* pNewTargetParameters) -> HRESULT
 		{
-			BOOST_LOG_TRIVIAL(info) << "IDXGISwapChain::ResizeTarget called";
+			static boost::once_flag flag = BOOST_ONCE_INIT;
+			boost::call_once(flag, boost::bind(&logOnce, "++ IDXGISwapChain::ResizeTarget called"));
 
 			return g_swapChainResizeTarget10Hook.callOrig(chain, pNewTargetParameters);
 		});
@@ -288,7 +315,7 @@ void initGame()
 		g_getDeviceState8Hook.apply(vtable8[DirectInput8Hooking::GetDeviceState], [](LPDIRECTINPUTDEVICE8 dev, DWORD cbData, LPVOID lpvData) -> HRESULT
 		{
 			BOOST_LOG_TRIVIAL(info) << "IDirectInputDevice8::GetDeviceState called";
-			
+
 			return g_getDeviceState8Hook.callOrig(dev, cbData, lpvData);
 		});
 
