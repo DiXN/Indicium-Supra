@@ -45,6 +45,9 @@ Hook<CallConvention::stdcall_t, HRESULT, LPDIRECTINPUTDEVICE8, LPDIDEVICEINSTANC
 Hook<CallConvention::stdcall_t, HRESULT, LPDIRECTINPUTDEVICE8, DWORD, LPVOID> g_getDeviceState8Hook;
 Hook<CallConvention::stdcall_t, HRESULT, LPDIRECTINPUTDEVICE8, LPDIDEVICEOBJECTINSTANCE, DWORD, DWORD> g_getObjectInfo8Hook;
 
+// Windows API
+Hook<CallConvention::stdcall_t, LRESULT, const MSG *> g_dispatchMessageAHook;
+Hook<CallConvention::stdcall_t, LRESULT, const MSG *> g_dispatchMessageWHook;
 
 Renderer g_pRenderer;
 bool g_bEnabled = false;
@@ -157,6 +160,20 @@ void initGame()
 	}
 
 	BOOST_LOG_TRIVIAL(info) << "Hook engine initialized";
+
+	g_dispatchMessageAHook.apply(reinterpret_cast<DWORD>(GetProcAddress(GetModuleHandle("user32.dll"), "DispatchMessageA")), [](const MSG *lpmsg) -> LRESULT
+	{
+		InternalDispatchMessage(lpmsg);
+
+		return g_dispatchMessageAHook.callOrig(lpmsg);
+	});
+
+	g_dispatchMessageWHook.apply(reinterpret_cast<DWORD>(GetProcAddress(GetModuleHandle("user32.dll"), "DispatchMessageW")), [](const MSG *lpmsg) -> LRESULT
+	{
+		InternalDispatchMessage(lpmsg);
+
+		return g_dispatchMessageWHook.callOrig(lpmsg);
+	});
 
 	if (d3d9_available)
 	{
