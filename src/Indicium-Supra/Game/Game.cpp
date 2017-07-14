@@ -13,6 +13,7 @@
 #include <boost/log/expressions.hpp>
 #include <boost/log/utility/setup/file.hpp>
 #include <boost/log/utility/setup/common_attributes.hpp>
+#include <boost/thread/once.hpp>
 
 #include <Psapi.h>
 #pragma comment(lib, "psapi.lib")
@@ -52,6 +53,7 @@ Hook<CallConvention::stdcall_t, LRESULT, const MSG *> g_dispatchMessageWHook;
 Renderer g_pRenderer;
 bool g_bEnabled = false;
 bool g_bIsUsingPresent = false;
+HWND g_hWnd = nullptr;
 
 extern "C" __declspec(dllexport) void enable()
 {
@@ -69,6 +71,19 @@ inline MH_STATUS MH_CreateHookApiEx(
 {
 	return MH_CreateHookApi(
 		pszModule, pszProcName, pDetour, reinterpret_cast<LPVOID*>(ppOriginal));
+}
+
+void InternalDispatchMessage(const MSG* lpmsg)
+{
+	if (!g_hWnd)
+	{
+		g_hWnd = lpmsg->hwnd;
+	}
+}
+
+void logOnce(std::string message)
+{
+	BOOST_LOG_TRIVIAL(info) << message;
 }
 
 void initGame()
@@ -93,11 +108,6 @@ void initGame()
 	GetProcessImageFileName(GetCurrentProcess(), sz_ProcName, MAX_PATH);
 	BOOST_LOG_TRIVIAL(info) << "Library loaded into " << sz_ProcName;
 	free(sz_ProcName);
-
-#ifdef TEST
-	while ((hMod = GetModuleHandle("d3d9.dll")) == nullptr || g_bEnabled == false)
-		Sleep(200);
-#endif
 
 	BOOST_LOG_TRIVIAL(info) << "Library enabled";
 
