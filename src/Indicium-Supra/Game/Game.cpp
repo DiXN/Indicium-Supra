@@ -72,21 +72,7 @@ extern "C" __declspec(dllexport) void enable()
 void initGame()
 {
 	bool d3d9_available, d3d9ex_available, d3d10_available, d3d11_available, dinput8_available;
-
-	logging::add_common_attributes();
-
-	logging::add_file_log
-		(
-		keywords::file_name = "Indicium-Supra.log",
-		keywords::auto_flush = true,
-		keywords::format = "[%TimeStamp%]: %Message%"
-		);
-
-	logging::core::get()->set_filter
-		(
-		logging::trivial::severity >= logging::trivial::info
-		);
-
+	
 	auto sz_ProcName = static_cast<LPSTR>(malloc(MAX_PATH + 1));
 	GetProcessImageFileName(GetCurrentProcess(), sz_ProcName, MAX_PATH);
 	BOOST_LOG_TRIVIAL(info) << "Library loaded into " << sz_ProcName;
