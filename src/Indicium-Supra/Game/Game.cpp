@@ -51,9 +51,6 @@ Hook<CallConvention::stdcall_t, HRESULT, LPDIRECTINPUTDEVICE8, LPDIDEVICEINSTANC
 Hook<CallConvention::stdcall_t, HRESULT, LPDIRECTINPUTDEVICE8, DWORD, LPVOID> g_getDeviceState8Hook;
 Hook<CallConvention::stdcall_t, HRESULT, LPDIRECTINPUTDEVICE8, LPDIDEVICEOBJECTINSTANCE, DWORD, DWORD> g_getObjectInfo8Hook;
 
-// Windows API
-Hook<CallConvention::stdcall_t, LRESULT, HWND, UINT, WPARAM, LPARAM> g_defWindowProcAHook;
-Hook<CallConvention::stdcall_t, LRESULT, HWND, UINT, WPARAM, LPARAM> g_defWindowProcWHook;
 
 Renderer g_pRenderer;
 bool g_bEnabled = false;
@@ -69,6 +66,7 @@ namespace logging = boost::log;
 namespace keywords = boost::log::keywords;
 namespace expr = boost::log::expressions;
 
+void logOnce(std::string message);
 
 template <typename T>
 inline MH_STATUS MH_CreateHookApiEx(
@@ -78,6 +76,30 @@ inline MH_STATUS MH_CreateHookApiEx(
 		pszModule, pszProcName, pDetour, reinterpret_cast<LPVOID*>(ppOriginal));
 }
 
+typedef LRESULT(WINAPI *tDefWindowProc)(
+	_In_ HWND hWnd,
+	_In_ UINT Msg,
+	_In_ WPARAM wParam,
+	_In_ LPARAM lParam
+	);
+tDefWindowProc OriginalDefWindowProc = nullptr;
+
+LRESULT WINAPI DetourDefWindowProc(
+	_In_ HWND hWnd,
+	_In_ UINT Msg,
+	_In_ WPARAM wParam,
+	_In_ LPARAM lParam
+	)
+{
+	static boost::once_flag flag = BOOST_ONCE_INIT;
+	boost::call_once(flag, boost::bind(&logOnce, "++ USER32!DefWindowProc called"));
+
+	if (!g_hWnd)
+	{
+		g_hWnd = hWnd;
+	}
+}
+
 void logOnce(std::string message)
 {
 	BOOST_LOG_TRIVIAL(info) << message;
@@ -85,50 +107,34 @@ void logOnce(std::string message)
 
 void RenderScene();
 
-void InternalDefWindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam)
-{
-	if (!g_hWnd)
-	{
-		g_hWnd = hWnd;
-	}
-}
-
-void HookDefWindowProcA()
+void HookDefWindowProc()
 {
 	BOOST_LOG_TRIVIAL(info) << "Hooking USER32!DefWindowProcA (ANSI)";
 
-	auto addrA = reinterpret_cast<DWORD>(GetProcAddress(GetModuleHandle("user32"), "DefWindowProcA"));
-
-	BOOST_LOG_TRIVIAL(info) << "DefWindowProcA: " << addrA;
-
-	g_defWindowProcAHook.apply(addrA, [](HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam) -> LRESULT
+	if (MH_CreateHookApiEx(L"user32", "DefWindowProcA", &DetourDefWindowProc, &OriginalDefWindowProc) != MH_OK)
 	{
-		static boost::once_flag flag = BOOST_ONCE_INIT;
-		boost::call_once(flag, boost::bind(&logOnce, "++ USER32!DefWindowProcA (ANSI) called"));
-
-		InternalDefWindowProc(hWnd, Msg, wParam, lParam);
-
-		return g_defWindowProcAHook.callOrig(hWnd, Msg, wParam, lParam);
-	});
+		BOOST_LOG_TRIVIAL(error) << "Couldn't hook USER32!DefWindowProcA (ANSI)";
+		return;
+	}
 
 	BOOST_LOG_TRIVIAL(info) << "Hooking USER32!DefWindowProcW (Unicode)";
 
-	auto addrW = reinterpret_cast<DWORD>(GetProcAddress(GetModuleHandle("user32"), "DefWindowProcW"));
-
-	BOOST_LOG_TRIVIAL(info) << "DefWindowProcW: " << addrW;
-
-	g_defWindowProcWHook.apply(addrW, [](HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam) -> LRESULT
+	if (MH_CreateHookApiEx(L"user32", "DefWindowProcW", &DetourDefWindowProc, &OriginalDefWindowProc) != MH_OK)
 	{
-		static boost::once_flag flag = BOOST_ONCE_INIT;
-		boost::call_once(flag, boost::bind(&logOnce, "++ USER32!DefWindowProcW (Unicode) called"));
+		BOOST_LOG_TRIVIAL(error) << "Couldn't hook USER32!DefWindowProcW (Unicode)";
+		return;
+	}
 
-		InternalDefWindowProc(hWnd, Msg, wParam, lParam);
+	if (MH_EnableHook(MH_ALL_HOOKS) != MH_OK)
+	{
+		BOOST_LOG_TRIVIAL(error) << "Couldn't enable DefWindowProc hooks";
+		return;
+	}
 
-		return g_defWindowProcWHook.callOrig(hWnd, Msg, wParam, lParam);
-	});
+	BOOST_LOG_TRIVIAL(info) << "DefWindowProc hooked";
 }
 
-void HookDX9(UINTX *vtable9)
+void HookDX9(UINTX* vtable9)
 {
 	BOOST_LOG_TRIVIAL(info) << "Hooking IDirect3DDevice9::Present";
 
@@ -171,7 +177,7 @@ void HookDX9(UINTX *vtable9)
 	});
 }
 
-void HookDX9Ex(UINTX *vtable9Ex)
+void HookDX9Ex(UINTX* vtable9Ex)
 {
 	BOOST_LOG_TRIVIAL(info) << "Hooking IDirect3DDevice9Ex::PresentEx";
 
@@ -199,7 +205,7 @@ void HookDX9Ex(UINTX *vtable9Ex)
 	});
 }
 
-void HookDX10(UINTX *vtable10SwapChain)
+void HookDX10(UINTX* vtable10SwapChain)
 {
 	BOOST_LOG_TRIVIAL(info) << "Hooking IDXGISwapChain::Present";
 
@@ -224,7 +230,7 @@ void HookDX10(UINTX *vtable10SwapChain)
 	});
 }
 
-void HookDX11(UINTX *vtable11SwapChain)
+void HookDX11(UINTX* vtable11SwapChain)
 {
 	BOOST_LOG_TRIVIAL(info) << "Hooking IDXGISwapChain::Present";
 
@@ -239,17 +245,15 @@ void HookDX11(UINTX *vtable11SwapChain)
 		{
 			if (g_hWnd)
 			{
-				//ID3D10Device *dev = nullptr;
-				//chain->GetDevice(__uuidof(dev), reinterpret_cast<void**>(&dev));
+				static ID3D11Device* dev = nullptr;
+				chain->GetDevice(__uuidof(dev), reinterpret_cast<void**>(&dev));
 
-				BOOST_LOG_TRIVIAL(info) << "ID3D11Device -> " << dev;
-
-				ID3D11DeviceContext *ctx;
+				static ID3D11DeviceContext* ctx;
 				dev->GetImmediateContext(&ctx);
 
-				BOOST_LOG_TRIVIAL(info) << "ID3D11DeviceContext -> " << ctx;
-
 				ImGui_ImplDX11_Init(g_hWnd, dev, ctx);
+
+				BOOST_LOG_TRIVIAL(info) << "ImGui (DX11) initialized";
 
 				g_bIsImGuiInitialized = true;
 			}
@@ -274,7 +278,7 @@ void HookDX11(UINTX *vtable11SwapChain)
 	});
 }
 
-void HookDInput8(UINTX *vtable8)
+void HookDInput8(UINTX* vtable8)
 {
 	BOOST_LOG_TRIVIAL(info) << "Hooking IDirectInputDevice8::Acquire";
 
@@ -418,7 +422,7 @@ void initGame()
 
 	BOOST_LOG_TRIVIAL(info) << "Hook engine initialized";
 
-	HookDefWindowProcA();
+	HookDefWindowProc();
 
 	if (d3d9_available)
 	{
