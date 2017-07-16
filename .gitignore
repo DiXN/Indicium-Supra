@@ -173,3 +173,6 @@ UpgradeLog*.htm
 # Microsoft Fakes
 FakesAssemblies/
 *.bak
+
+src/\.vs/
+bin/
